@@ -9,9 +9,11 @@ import keyboard
 import threading
 from time import sleep, time
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 PROGRAM_NAME = "Fusion 3.64 - SegaCD - Penn & Teller's Smoke and Mirrors"
 DEFAULT_POINT = (160, 370)
+img_to_screen = None
 
 keys_to_map = [
     "up",  # to up
@@ -28,7 +30,19 @@ keys_to_map = [
     "ctrl", # to mode
 ]
 
-def get_screenshot(bbox):
+def get_screenshot():
+    windows = gw.getWindowsWithTitle(PROGRAM_NAME)
+    windows = windows[0]
+
+    bbox = {
+        "top": windows.top,
+        "left": windows.left,
+        "width": windows.width,
+        "height": windows.height
+    }
+
+    print(bbox)
+
     with mss.mss() as sct:
         screenshot = sct.grab(bbox)
         img = np.array(screenshot)
@@ -66,6 +80,14 @@ def get_closest_point(img):
         if distance < min_distance:
             min_distance = distance
             closest_point = contour_point
+    
+    if closest_point is not None:
+        cv2.circle(img, closest_point, 5, (0, 255, 0), -1)
+        cv2.circle(img, start_point, 5, (255, 0, 0), -1)
+        cv2.line(img, start_point, closest_point, (0, 0, 255), 2)
+        
+        return closest_point, img 
+
 
     #print(closest_point)
     return closest_point
@@ -85,10 +107,7 @@ def hold_key(key, hold_time):
     while time() - start_time < hold_time:
         pyautogui.press(key)
 
-
 def controler_bus():
-
-    
     start = input("Press Enter to start the game or any key to quit: ")
     if start != "":
         return
@@ -99,36 +118,32 @@ def controler_bus():
     if len(windows) > 1:
         print("Multiple windows found")
         return
-    
-    window = windows[0]
-    windows = gw.getWindowsWithTitle(PROGRAM_NAME)
+
+    if len(windows) == 0:
+        print("Window not found")
+        return
+
     hwnd = win32gui.FindWindow(None, PROGRAM_NAME)
     win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
     pyautogui.press('pause')
     win32gui.SetForegroundWindow(hwnd)
     sleep(0.5)
 
-    bbox = {
-        "top": window.top,
-        "left": window.left,
-        "width": window.width,
-        "height": window.height 
-    }
-
-    if len(windows) == 0:
-        print("Window not found")
-        return
-
-    threading.Thread(target=hold_key_a).start()
 
     for i in range(3):
         print("Starting in ", 3-i)
         sleep(1)
 
+    threading.Thread(target=hold_key_a).start()
+
+    plt.ion()
+    fig, ax = plt.subplots()
+
     while True:
         try:
-            img = get_screenshot(bbox)
-            close_points = get_closest_point(img)
+            img = get_screenshot()
+            close_points, img = get_closest_point(img)
+
             side = get_side_of_closest_point(close_points)
             print(side)
             if side == "left":
@@ -138,6 +153,11 @@ def controler_bus():
 
             if keyboard.is_pressed('q'):
                 break
+
+            ax.clear()
+            ax.imshow(img)
+            ax.axis('off')
+            plt.draw()
 
         except Exception as e:
             print("Error occured: ", e)
@@ -194,13 +214,11 @@ def hold_key_a():
 if __name__ == "__main__":
     print(" --------- Starting Desert Bus Controller --------- ")
     print()
+    plt.ion()
     #map_controls()
     #manual_control()
     #controler_bus()
     # threading.Thread(target=hold_key_a).start()
-
-    # while True:
-    #     left_wheel()
 
     while True:
         choice = input("""
